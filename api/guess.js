@@ -22,10 +22,14 @@ export default async function handler(req, res) {
     if (!target) return res.status(400).json({ error: "Target not found" });
 
     // Check guess
-    const correct = target.number === parseInt(guess);
-    const logEntry = `${guesser.name} → ${target.name}: ${guess} — ${
-      correct ? "CORRECT! " + target.name + " eliminated!" : "Wrong."
-    }`;
+    const guessNum = parseInt(guess);
+    const correct = target.number === guessNum;
+    const hint = correct
+      ? "CORRECT! " + target.name + " eliminated!"
+      : guessNum < target.number
+      ? "Too low! 🔼"
+      : "Too high! 🔽";
+    const logEntry = `${guesser.name} → ${target.name}: ${guess} — ${hint}`;
     lobby.log.push(logEntry);
 
     if (correct) lobby.players[targetId].eliminated = true;
@@ -71,7 +75,7 @@ export default async function handler(req, res) {
       }
     );
 
-    res.json({ lobby });
+    res.json({ lobby, correct, hint });
   } catch (err) {
     console.error("guess error:", err);
     res.status(500).json({ error: "Failed to process guess" });
