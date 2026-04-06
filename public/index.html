@@ -231,24 +231,29 @@ input::placeholder{color:var(--text3)}
 </div>
 <script>
 // ── STATE ──────────────────────────────────────────────────────────────
-const myId   = 'p_' + Math.random().toString(36).slice(2,9);
-let myName   = '';
+const myId    = 'p_' + Math.random().toString(36).slice(2,9);
+let myName    = '';
 let lobbyCode = '';
-let amHost   = false;
-let myNumber = null;
-let selNum   = null;
+let amHost    = false;
+let myNumber  = null;
+let selNum    = null;
 let selTarget = null;
 let pollTimer = null;
 let lastUpdatedAt = 0;
 
 // ── HELPERS ────────────────────────────────────────────────────────────
-const $  = id => document.getElementById(id);
-const show = id => { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $(id).classList.add('active'); window.scrollTo(0,0); };
+const $      = id => document.getElementById(id);
+const show   = id => { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); $(id).classList.add('active'); window.scrollTo(0,0); };
 const setErr = (id,msg) => { const e=$(id); if(e) e.textContent=msg; };
 const clrErr = id => setErr(id,'');
 
+// ── KEY FIX: normalize MongoDB Date objects to timestamps ──────────────
+const toTs = val => val ? new Date(val).getTime() : 0;
+
 async function api(path, body){
-  const opts = body ? { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) } : { method:'GET' };
+  const opts = body
+    ? { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }
+    : { method:'GET' };
   const r = await fetch(path, opts);
   if(!r.ok){ const d=await r.json().catch(()=>({})); throw new Error(d.error||'Request failed'); }
   return r.json();
@@ -265,6 +270,7 @@ async function doCreate(){
   try{
     const d=await api('/api/create',{playerId:myId,playerName:myName});
     lobbyCode=d.code; amHost=true;
+    lastUpdatedAt=toTs(d.lobby.updatedAt); // ← fixed
     openLobby();
   }catch(e){setErr('h-err',e.message);}
 }
@@ -277,12 +283,13 @@ async function doJoin(){
   clrErr('h-err');
   try{
     lobbyCode=code; amHost=false;
-    await api('/api/join',{code,playerId:myId,playerName:myName});
+    const d=await api('/api/join',{code,playerId:myId,playerName:myName});
+    lastUpdatedAt=toTs(d.lobby.updatedAt); // ← fixed
     openLobby();
   }catch(e){setErr('h-err',e.message);}
 }
 
-function goHome(){ stopPoll(); myNumber=null; selNum=null; selTarget=null; show('s-home'); }
+function goHome(){ stopPoll(); myNumber=null; selNum=null; selTarget=null; lastUpdatedAt=0; show('s-home'); }
 
 // ── LOBBY ──────────────────────────────────────────────────────────────
 function openLobby(){
@@ -296,7 +303,8 @@ function openLobby(){
 async function pollLobby(){
   try{
     const {lobby}=await api('/api/lobby?code='+lobbyCode);
-    if(lobby.updatedAt!==lastUpdatedAt){ lastUpdatedAt=lobby.updatedAt; handleLobbyState(lobby); }
+    const upd=toTs(lobby.updatedAt); // ← fixed
+    if(upd!==lastUpdatedAt){ lastUpdatedAt=upd; handleLobbyState(lobby); }
   }catch(e){ console.warn(e); }
 }
 
@@ -352,7 +360,8 @@ function goToPick(lobby){
 async function pollPick(){
   try{
     const {lobby}=await api('/api/lobby?code='+lobbyCode);
-    if(lobby.updatedAt!==lastUpdatedAt){ lastUpdatedAt=lobby.updatedAt;
+    const upd=toTs(lobby.updatedAt); // ← fixed
+    if(upd!==lastUpdatedAt){ lastUpdatedAt=upd;
       if(lobby.gameState==='playing'){stopPoll();goToGame(lobby);return;}
       const total=Object.keys(lobby.players||{}).length;
       const ready=Object.values(lobby.players||{}).filter(p=>p.ready).length;
@@ -378,7 +387,7 @@ async function doLock(){
   $('p-status').textContent='Locked in! Waiting for others…';
   try{
     const {lobby}=await api('/api/pick',{code:lobbyCode,playerId:myId,number:myNumber});
-    lastUpdatedAt=lobby.updatedAt;
+    lastUpdatedAt=toTs(lobby.updatedAt); // ← fixed
     if(lobby.gameState==='playing'){stopPoll();goToGame(lobby);}
   }catch(e){$('p-status').textContent='Error: '+e.message;}
 }
@@ -393,8 +402,9 @@ function goToGame(lobby){
 async function pollGame(){
   try{
     const {lobby}=await api('/api/lobby?code='+lobbyCode);
-    if(lobby.updatedAt!==lastUpdatedAt){
-      lastUpdatedAt=lobby.updatedAt;
+    const upd=toTs(lobby.updatedAt); // ← fixed
+    if(upd!==lastUpdatedAt){
+      lastUpdatedAt=upd;
       if(lobby.gameState==='over'){stopPoll();goToOver(lobby);return;}
       renderGame(lobby);
     }
@@ -468,7 +478,7 @@ async function doGuess(){
   if(isNaN(gval)||gval<1||gval>99){setErr('g-err','Enter a number 1–99');return;}
   try{
     const {lobby}=await api('/api/guess',{code:lobbyCode,playerId:myId,targetId:selTarget,guess:gval});
-    lastUpdatedAt=lobby.updatedAt;
+    lastUpdatedAt=toTs(lobby.updatedAt); // ← fixed
     $('g-guess').value='';
     selTarget=null;
     document.querySelectorAll('.tbtn').forEach(b=>b.classList.remove('sel'));
@@ -509,7 +519,7 @@ function goToOver(lobby){
 async function doAgain(){
   try{
     const {lobby}=await api('/api/again',{code:lobbyCode});
-    lastUpdatedAt=lobby.updatedAt;
+    lastUpdatedAt=toTs(lobby.updatedAt); // ← fixed
     myNumber=null; selNum=null; selTarget=null;
     amHost=lobby.host===myId;
     openLobby();
