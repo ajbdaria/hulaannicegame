@@ -11,7 +11,6 @@ export default async function handler(req, res) {
     const db = client.db("hulaan");
     const lobbies = db.collection("lobbies");
 
-    // Find the lobby
     const lobby = await lobbies.findOne({ code });
     if (!lobby) return res.status(404).json({ error: "Lobby not found" });
 
@@ -20,10 +19,14 @@ export default async function handler(req, res) {
     if (!target) return res.status(400).json({ error: "Target not found" });
     if (target.eliminated) return res.status(400).json({ error: "Target already eliminated" });
 
-    // Initialize recentGuesses array if it doesn't exist
     if (!lobby.recentGuesses) lobby.recentGuesses = [];
 
-    // --- JUMP GUESS: anyone alive can jump-guess any other alive player ---
+    const guessNum = parseInt(guess);
+    const correct = target.number === guessNum;
+    // Unified hint key used by both normal and jump guesses
+    const hintKey = correct ? "correct" : guessNum < target.number ? "low" : "high";
+
+    // --- JUMP GUESS ---
     if (isJump) {
       if (lobby.gameState !== "playing")
         return res.status(400).json({ error: "Game not active" });
@@ -32,24 +35,19 @@ export default async function handler(req, res) {
       if (lobby.players[playerId]?.eliminated)
         return res.status(400).json({ error: "Eliminated players cannot guess" });
 
-      const guessNum = parseInt(guess);
-      const correct = target.number === guessNum;
-
       const hint = correct ? "YES ✅" : "NO ❌";
       const logEntry = `[JUMP] ${guesser.name} → ${target.name}: ${guess} — ${hint}`;
       lobby.log.push(logEntry);
 
-      // Track this guess for the ring center display
       lobby.recentGuesses.push({
         guesser: guesser.name,
         target: target.name,
         num: guessNum,
         correct,
-        hint: correct ? "correct" : "jump-miss",
+        hint: hintKey, // "correct" | "low" | "high" — same as normal so arrow shows correctly
         isJump: true,
         ts: Date.now(),
       });
-      // Keep only the last 5 guesses
       if (lobby.recentGuesses.length > 5) lobby.recentGuesses.shift();
 
       if (correct) {
@@ -69,12 +67,10 @@ export default async function handler(req, res) {
       }
 
     } else {
-      // --- NORMAL GUESS: must be your turn ---
+      // --- NORMAL GUESS ---
       if (lobby.currentTurn !== playerId)
         return res.status(400).json({ error: "Not your turn" });
 
-      const guessNum = parseInt(guess);
-      const correct = target.number === guessNum;
       const hintText = correct
         ? "CORRECT! " + target.name + " eliminated!"
         : guessNum < target.number
@@ -84,19 +80,15 @@ export default async function handler(req, res) {
       const logEntry = `${guesser.name} → ${target.name}: ${guess} — ${hintText}`;
       lobby.log.push(logEntry);
 
-      // Track this guess for the ring center display
-      // hint field: "correct" | "low" | "high"
-      const hintKey = correct ? "correct" : guessNum < target.number ? "low" : "high";
       lobby.recentGuesses.push({
         guesser: guesser.name,
         target: target.name,
         num: guessNum,
         correct,
-        hint: hintKey,
+        hint: hintKey, // "correct" | "low" | "high"
         isJump: false,
         ts: Date.now(),
       });
-      // Keep only the last 5 guesses
       if (lobby.recentGuesses.length > 5) lobby.recentGuesses.shift();
 
       if (correct) lobby.players[targetId].eliminated = true;
@@ -143,13 +135,12 @@ export default async function handler(req, res) {
       }
     );
 
-    const guessNum = parseInt(guess);
     res.json({
       lobby,
-      correct: target.number === guessNum,
+      correct,
       hint: isJump
-        ? (target.number === guessNum ? "YES ✅" : "NO ❌")
-        : (target.number === guessNum
+        ? (correct ? "YES ✅" : "NO ❌")
+        : (correct
             ? "CORRECT! " + target.name + " eliminated!"
             : guessNum < target.number
             ? "Too low! 🔼"
