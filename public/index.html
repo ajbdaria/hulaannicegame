@@ -54,7 +54,6 @@ body::before{content:'';position:fixed;top:-200px;left:50%;transform:translateX(
 .btn-p.loading::after{color:#0a0a14}
 .btn-ghost{background:transparent;color:var(--text2);border-color:transparent;font-size:12px}
 .btn-ghost:hover{color:var(--text);background:var(--surface2)}
-/* Jump button style */
 .btn-jump{background:var(--jump-dim);color:var(--jump);border-color:var(--jump);font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.5px;box-shadow:0 4px 20px var(--jump-glow)}
 .btn-jump:hover{background:rgba(191,127,255,.22);border-color:#d09fff;box-shadow:0 6px 28px var(--jump-glow);transform:translateY(-1px)}
 .btn-jump.loading::after{color:var(--jump)}
@@ -149,10 +148,8 @@ input::placeholder{color:var(--text3)}
 @keyframes jumpBannerPulse{0%,100%{box-shadow:0 0 24px rgba(191,127,255,.10)}50%{box-shadow:0 0 36px rgba(191,127,255,.22)}}
 .msg{font-size:13px;padding:12px 14px;border-radius:var(--r);margin-bottom:10px;line-height:1.5}
 .msg-info{background:var(--blue-dim);color:var(--blue);border:1.5px solid rgba(94,184,255,.2)}
-/* Jump info tip */
 .jump-tip{font-size:11px;color:var(--jump);background:var(--jump-dim);border:1px solid rgba(191,127,255,.25);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-family:var(--mono);display:flex;align-items:center;gap:7px;line-height:1.5}
 .jump-tip-icon{font-size:14px;flex-shrink:0}
-/* Jump guess panel */
 .jump-panel{background:var(--jump-dim);border:1.5px solid rgba(191,127,255,.35);border-radius:var(--r);padding:14px;margin-bottom:10px;position:relative;overflow:hidden}
 .jump-panel::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,rgba(191,127,255,.08),transparent 60%);pointer-events:none}
 .jump-panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
@@ -176,38 +173,38 @@ input::placeholder{color:var(--text3)}
 @keyframes dotPulse{0%,100%{box-shadow:0 0 8px var(--green)}50%{box-shadow:0 0 16px var(--green)}}
 .auto-notice{font-size:11px;color:var(--green);background:var(--green-dim);border:1px solid rgba(61,255,160,.2);border-radius:8px;padding:7px 11px;margin-bottom:8px;font-family:var(--mono);display:flex;align-items:center;gap:6px}
 
+/* Sound toggle button */
+#sound-toggle{position:fixed;top:14px;right:16px;z-index:800;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:6px 10px;font-size:16px;cursor:pointer;transition:all .18s;line-height:1;}
+#sound-toggle:hover{border-color:var(--accent);background:var(--surface3);}
+#sound-toggle.muted{opacity:.4;}
+
 /* ── TURN RING ── */
 #turn-ring-wrap{width:100%;max-width:280px;margin:0 auto 12px;aspect-ratio:1;position:relative;}
 #turn-ring-svg{width:100%;height:100%;overflow:visible;}
 .ring-player-node{cursor:pointer;}
 .ring-player-node.ring-eliminated{opacity:0.25;pointer-events:none;}
-/* Jump-clickable nodes get a special cursor and glow */
 .ring-player-node.ring-jumpable{cursor:pointer;}
-
 @keyframes ringFlowDash{to{stroke-dashoffset:-40;}}
 @keyframes ringNodePulse{0%{r:20;}50%{r:25;}100%{r:20;}}
 @keyframes ringGlowPulse{0%,100%{opacity:0.15;}50%{opacity:0.35;}}
-/* Jump ring spin animation */
 @keyframes ringJumpSpin{to{stroke-dashoffset:-28;}}
 @keyframes jumpGlowPulse{0%,100%{opacity:0.20;}50%{opacity:0.50;}}
 @keyframes jumpNodeBounce{0%,100%{r:18;}50%{r:23;}}
-
 .ring-flow-arc{fill:none;stroke-linecap:round;stroke-dasharray:7 6;animation:ringFlowDash 1.1s linear infinite;}
 .ring-flow-arc.ring-arc-active{stroke-dasharray:9 5;animation-duration:.75s;}
 .ring-flow-arc.ring-arc-elim{animation:none;opacity:0.08!important;}
 .ring-avatar-pulse{animation:ringNodePulse 1.2s ease-in-out infinite;}
 .ring-glow-pulse{animation:ringGlowPulse 1.2s ease-in-out infinite;}
-/* Jump ring — dashed spinning purple outline */
 .ring-jump-spin{fill:none;stroke-linecap:round;stroke-dasharray:5 4;animation:ringJumpSpin .9s linear infinite;}
 .ring-jump-glow{animation:jumpGlowPulse 1s ease-in-out infinite;}
 .ring-jump-bounce{animation:jumpNodeBounce 1s ease-in-out infinite;}
-/* Selected jump target — brighter */
 .ring-jump-selected .ring-jump-spin{stroke:#bf7fff;stroke-width:3;stroke-dasharray:6 3;animation-duration:.5s;}
-
 @media(prefers-reduced-motion:reduce){.ring-flow-arc,.ring-avatar-pulse,.ring-glow-pulse,.ring-jump-spin,.ring-jump-glow,.ring-jump-bounce{animation:none!important;}}
 </style>
 </head>
 <body>
+
+<button id="sound-toggle" title="Toggle sound" onclick="toggleSound()">🔊</button>
 
 <div id="splash">
   <div class="splash-logo">HULAAN!</div>
@@ -279,12 +276,10 @@ input::placeholder{color:var(--text3)}
   </div>
   <div id="g-banner" class="banner banner-turn"></div>
 
-  <!-- Ring — clickable for jump guessing -->
   <div id="turn-ring-wrap">
     <svg id="turn-ring-svg" viewBox="-110 -110 220 220"></svg>
   </div>
 
-  <!-- Jump hint tip — shown only when player is alive -->
   <div id="g-jump-tip" class="jump-tip" style="display:none">
     <span class="jump-tip-icon">⚡</span>
     <span>Tap any <b style="color:var(--jump)">spinning purple ring</b> to JUMP-GUESS that player anytime!</span>
@@ -295,7 +290,6 @@ input::placeholder{color:var(--text3)}
     <ul class="plist" id="g-players"></ul>
   </div>
 
-  <!-- Normal turn UI -->
   <div id="g-myturn" style="display:none">
     <div class="card">
       <p class="label">Choose your target</p>
@@ -312,7 +306,6 @@ input::placeholder{color:var(--text3)}
     </div>
   </div>
 
-  <!-- Jump guess panel — shown when jump target selected -->
   <div id="g-jump-panel" style="display:none">
     <div class="jump-panel">
       <div class="jump-panel-header">
@@ -366,6 +359,230 @@ input::placeholder{color:var(--text3)}
 <script>
 const $=id=>document.getElementById(id);
 
+/* ══════════════════════════════════════════
+   🔊 SOUND ENGINE — Web Audio API (no files)
+   ══════════════════════════════════════════ */
+let audioCtx=null,soundEnabled=true;
+
+function getCtx(){
+  if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();}
+  if(audioCtx.state==='suspended')audioCtx.resume();
+  return audioCtx;
+}
+
+function toggleSound(){
+  soundEnabled=!soundEnabled;
+  $('sound-toggle').textContent=soundEnabled?'🔊':'🔇';
+  $('sound-toggle').classList.toggle('muted',!soundEnabled);
+  if(soundEnabled)sfx.click(); // confirm toggle with a click
+}
+
+// Core tone builder
+function tone(freq,type,vol,dur,startTime,ctx){
+  const t=startTime||ctx.currentTime;
+  const osc=ctx.createOscillator();
+  const gain=ctx.createGain();
+  osc.connect(gain);gain.connect(ctx.destination);
+  osc.type=type||'sine';osc.frequency.setValueAtTime(freq,t);
+  gain.gain.setValueAtTime(vol||0.3,t);
+  gain.gain.exponentialRampToValueAtTime(0.0001,t+(dur||0.3));
+  osc.start(t);osc.stop(t+(dur||0.3)+0.01);
+}
+
+function noise(vol,dur,startTime,ctx){
+  const t=startTime||ctx.currentTime;
+  const buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate);
+  const d=buf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+  const src=ctx.createBufferSource();src.buffer=buf;
+  const gain=ctx.createGain();
+  const filt=ctx.createBiquadFilter();filt.type='bandpass';filt.frequency.value=800;filt.Q.value=0.8;
+  src.connect(filt);filt.connect(gain);gain.connect(ctx.destination);
+  gain.gain.setValueAtTime(vol||0.2,t);
+  gain.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  src.start(t);src.stop(t+dur+0.01);
+}
+
+const sfx={
+  // UI click — short soft tick
+  click(){
+    if(!soundEnabled)return;
+    try{const c=getCtx();tone(600,'sine',0.15,0.06,null,c);}catch{}
+  },
+  // Number picked — bright pop
+  pick(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      tone(880,'sine',0.2,0.08,t,c);
+      tone(1320,'sine',0.1,0.06,t+0.04,c);
+    }catch{}
+  },
+  // Number locked — satisfying thud + shimmer
+  lock(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      tone(220,'sine',0.35,0.18,t,c);
+      tone(440,'triangle',0.18,0.14,t+0.02,c);
+      tone(880,'sine',0.1,0.1,t+0.08,c);
+    }catch{}
+  },
+  // My turn — ascending alert
+  myTurn(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      tone(523,'sine',0.22,0.1,t,c);
+      tone(659,'sine',0.22,0.1,t+0.1,c);
+      tone(784,'sine',0.25,0.15,t+0.2,c);
+    }catch{}
+  },
+  // Guess submitted — neutral whoosh
+  guess(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      const osc=c.createOscillator(),gain=c.createGain();
+      osc.connect(gain);gain.connect(c.destination);
+      osc.type='sawtooth';
+      osc.frequency.setValueAtTime(400,t);
+      osc.frequency.exponentialRampToValueAtTime(150,t+0.18);
+      gain.gain.setValueAtTime(0.18,t);
+      gain.gain.exponentialRampToValueAtTime(0.0001,t+0.18);
+      osc.start(t);osc.stop(t+0.2);
+    }catch{}
+  },
+  // Too high — descending beep
+  high(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      tone(660,'square',0.15,0.08,t,c);
+      tone(440,'square',0.15,0.12,t+0.09,c);
+    }catch{}
+  },
+  // Too low — ascending beep
+  low(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      tone(330,'square',0.15,0.08,t,c);
+      tone(520,'square',0.15,0.12,t+0.09,c);
+    }catch{}
+  },
+  // Eliminated someone — dramatic KO hit
+  eliminate(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      // Punch thud
+      tone(80,'sine',0.5,0.12,t,c);
+      noise(0.3,0.08,t,c);
+      // Rising sting
+      tone(300,'sawtooth',0.2,0.06,t+0.05,c);
+      tone(600,'sawtooth',0.15,0.05,t+0.1,c);
+      // Descend
+      const osc=c.createOscillator(),gain=c.createGain();
+      osc.connect(gain);gain.connect(c.destination);
+      osc.type='sine';
+      osc.frequency.setValueAtTime(500,t+0.12);
+      osc.frequency.exponentialRampToValueAtTime(80,t+0.35);
+      gain.gain.setValueAtTime(0.25,t+0.12);
+      gain.gain.exponentialRampToValueAtTime(0.0001,t+0.35);
+      osc.start(t+0.12);osc.stop(t+0.36);
+    }catch{}
+  },
+  // You got eliminated — sad wah wah
+  eliminated(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      const notes=[392,349,311,277];
+      notes.forEach((f,i)=>tone(f,'sawtooth',0.2,0.18,t+i*0.18,c));
+    }catch{}
+  },
+  // Jump selected — electric zap
+  jumpSelect(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      const osc=c.createOscillator(),gain=c.createGain();
+      osc.connect(gain);gain.connect(c.destination);
+      osc.type='sawtooth';
+      osc.frequency.setValueAtTime(200,t);
+      osc.frequency.exponentialRampToValueAtTime(1200,t+0.08);
+      osc.frequency.exponentialRampToValueAtTime(600,t+0.16);
+      gain.gain.setValueAtTime(0.2,t);
+      gain.gain.exponentialRampToValueAtTime(0.0001,t+0.16);
+      osc.start(t);osc.stop(t+0.17);
+      noise(0.12,0.1,t,c);
+    }catch{}
+  },
+  // Jump correct — electric victory
+  jumpHit(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      noise(0.2,0.06,t,c);
+      tone(400,'sawtooth',0.18,0.06,t,c);
+      tone(800,'sawtooth',0.18,0.06,t+0.06,c);
+      tone(1200,'sine',0.2,0.1,t+0.12,c);
+      tone(1600,'sine',0.15,0.12,t+0.2,c);
+    }catch{}
+  },
+  // Jump wrong — buzzer
+  jumpMiss(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      tone(180,'square',0.25,0.08,t,c);
+      tone(160,'square',0.25,0.08,t+0.09,c);
+      tone(140,'square',0.2,0.1,t+0.18,c);
+    }catch{}
+  },
+  // Game start — fanfare
+  gameStart(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      const melody=[523,659,784,1047];
+      melody.forEach((f,i)=>{
+        tone(f,'sine',0.25,0.15,t+i*0.13,c);
+        if(i===melody.length-1)tone(f*1.5,'sine',0.15,0.3,t+i*0.13+0.05,c);
+      });
+    }catch{}
+  },
+  // Win — triumphant chord cascade
+  win(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      // Chord: C major
+      [523,659,784,1047].forEach((f,i)=>{
+        tone(f,'sine',0.22,0.6,t+i*0.06,c);
+      });
+      // Extra shimmer
+      setTimeout(()=>{
+        try{
+          const c2=getCtx(),t2=c2.currentTime;
+          [1047,1319,1568,2093].forEach((f,i)=>{
+            tone(f,'sine',0.12,0.5,t2+i*0.07,c2);
+          });
+        }catch{}
+      },350);
+    }catch{}
+  },
+  // Player joins lobby — soft chime
+  playerJoin(){
+    if(!soundEnabled)return;
+    try{
+      const c=getCtx(),t=c.currentTime;
+      tone(880,'sine',0.14,0.12,t,c);
+      tone(1100,'sine',0.1,0.1,t+0.1,c);
+    }catch{}
+  },
+};
+
 /* ── Splash ── */
 (function runSplash(){
   const bar=$('splash-bar'),pct=$('splash-pct');
@@ -392,6 +609,8 @@ const $=id=>document.getElementById(id);
 const myId='p_'+Math.random().toString(36).slice(2,9);
 let myName='',lobbyCode='',amHost=false,myNumber=null;
 let selNum=null,selTarget=null,jumpTarget=null,pollTimer=null,lastUpdatedAt=0;
+let _prevPlayerCount=0; // track joins for sound
+let _wasMyTurn=false;   // track turn changes
 
 function avatarColor(idx){return['green','blue','purple','red'][idx%4];}
 function avatarInitial(name){return(name||'?')[0].toUpperCase();}
@@ -420,22 +639,14 @@ function ringArcPath(i,ni,n){
   return`M${x1.toFixed(2)},${y1.toFixed(2)} A${RING_ORBIT},${RING_ORBIT} 0 0,1 ${x2.toFixed(2)},${y2.toFixed(2)}`;
 }
 
-/* ── Build Ring ──
-   jumpablePids: set of pids that current player can jump-guess
-   jumpTarget: currently selected jump target pid
-*/
 function buildRing(order,players,curId,jumpablePids,curJumpTarget){
   const svg=$('turn-ring-svg');svg.innerHTML='';
   const n=order.length;if(!n)return;
   const mk=(tag,attrs)=>{const el=document.createElementNS(SVG_NS,tag);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));return el;};
-
-  // Center labels
   const ct=mk('text',{'text-anchor':'middle','dominant-baseline':'central',fill:'#3a3a60','font-size':'10','font-family':'Syne,sans-serif','font-weight':'700','letter-spacing':'2',y:'-6'});
   ct.textContent='HULAAN!';svg.appendChild(ct);
   const cs=mk('text',{'text-anchor':'middle','dominant-baseline':'central',fill:'#3a3a60','font-size':'8','font-family':'Plus Jakarta Sans,sans-serif',y:'7'});
   cs.textContent='turn order';svg.appendChild(cs);
-
-  // Arcs
   order.forEach((pid,i)=>{
     const p=players[pid];if(!p)return;
     const isActive=(pid===curId)&&!p.eliminated,isElim=p.eliminated;
@@ -446,8 +657,6 @@ function buildRing(order,players,curId,jumpablePids,curJumpTarget){
     if(isElim)path.classList.add('ring-arc-elim');
     svg.appendChild(path);
   });
-
-  // Nodes
   order.forEach((pid,i)=>{
     const p=players[pid];if(!p)return;
     const[cx,cy]=ringXY(ringAngle(i,n),RING_ORBIT);
@@ -456,78 +665,25 @@ function buildRing(order,players,curId,jumpablePids,curJumpTarget){
     const isJumpable=jumpablePids&&jumpablePids.has(pid);
     const isJumpSel=(pid===curJumpTarget);
     const col=RING_COLORS[i%RING_COLORS.length];
-
     const g=mk('g',{transform:`translate(${cx.toFixed(2)},${cy.toFixed(2)})`});
     g.classList.add('ring-player-node');
     if(isElim)g.classList.add('ring-eliminated');
     if(isJumpable)g.classList.add('ring-jumpable');
     if(isJumpSel)g.classList.add('ring-jump-selected');
-
-    // Active turn glow
-    if(isCur){
-      const glow=mk('circle',{cx:'0',cy:'0',r:String(RING_R_BIG+6),fill:col.stroke,opacity:'0.18'});
-      glow.classList.add('ring-glow-pulse');g.appendChild(glow);
-    }
-
-    // Jump glow behind avatar
-    if(isJumpable&&!isElim){
-      const jglow=mk('circle',{cx:'0',cy:'0',r:String(RING_R_JUMP+8),fill:JUMP_COLOR,opacity:isJumpSel?'0.28':'0.12'});
-      jglow.classList.add('ring-jump-glow');g.appendChild(jglow);
-    }
-
-    // Avatar circle
+    if(isCur){const glow=mk('circle',{cx:'0',cy:'0',r:String(RING_R_BIG+6),fill:col.stroke,opacity:'0.18'});glow.classList.add('ring-glow-pulse');g.appendChild(glow);}
+    if(isJumpable&&!isElim){const jglow=mk('circle',{cx:'0',cy:'0',r:String(RING_R_JUMP+8),fill:JUMP_COLOR,opacity:isJumpSel?'0.28':'0.12'});jglow.classList.add('ring-jump-glow');g.appendChild(jglow);}
     const r=isCur?RING_R_BIG:isJumpable?RING_R_JUMP:RING_R_NORM;
-    const circ=mk('circle',{cx:'0',cy:'0',r:String(r),
-      fill:isElim?'rgba(42,42,69,0.6)':isJumpSel?'rgba(191,127,255,0.25)':col.dim,
-      stroke:isElim?'#3a3a60':isJumpSel?JUMP_COLOR:col.stroke,
-      'stroke-width':isCur?'2.5':isJumpSel?'2.5':'1.5'
-    });
+    const circ=mk('circle',{cx:'0',cy:'0',r:String(r),fill:isElim?'rgba(42,42,69,0.6)':isJumpSel?'rgba(191,127,255,0.25)':col.dim,stroke:isElim?'#3a3a60':isJumpSel?JUMP_COLOR:col.stroke,'stroke-width':isCur?'2.5':isJumpSel?'2.5':'1.5'});
     if(isCur)circ.classList.add('ring-avatar-pulse');
     if(isJumpable&&!isCur)circ.classList.add('ring-jump-bounce');
     g.appendChild(circ);
-
-    // Jump dashed spinning ring (outer)
-    if(isJumpable&&!isElim){
-      const jring=mk('circle',{cx:'0',cy:'0',r:String(r+5),
-        fill:'none',stroke:isJumpSel?JUMP_COLOR:'rgba(191,127,255,0.55)',
-        'stroke-width':isJumpSel?'2.5':'1.5',
-        'stroke-dasharray':isJumpSel?'6 3':'5 4',
-        'stroke-dashoffset':'0'
-      });
-      jring.classList.add('ring-jump-spin');
-      g.appendChild(jring);
-    }
-
-    // Initial letter
-    const txt=mk('text',{'text-anchor':'middle','dominant-baseline':'central',
-      'font-size':isCur?'11':'10','font-weight':'700','font-family':'Syne,sans-serif',
-      fill:isElim?'#3a3a60':isJumpSel?JUMP_COLOR:col.stroke
-    });
+    if(isJumpable&&!isElim){const jring=mk('circle',{cx:'0',cy:'0',r:String(r+5),fill:'none',stroke:isJumpSel?JUMP_COLOR:'rgba(191,127,255,0.55)','stroke-width':isJumpSel?'2.5':'1.5','stroke-dasharray':isJumpSel?'6 3':'5 4','stroke-dashoffset':'0'});jring.classList.add('ring-jump-spin');g.appendChild(jring);}
+    const txt=mk('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':isCur?'11':'10','font-weight':'700','font-family':'Syne,sans-serif',fill:isElim?'#3a3a60':isJumpSel?JUMP_COLOR:col.stroke});
     txt.textContent=(p.name||'?')[0].toUpperCase();g.appendChild(txt);
-
-    // Name below
-    const nm=mk('text',{'text-anchor':'middle','dominant-baseline':'central',
-      'font-size':'7','font-family':'Plus Jakarta Sans,sans-serif',
-      fill:isElim?'#3a3a60':isJumpSel?'rgba(191,127,255,0.9)':'#7070a0',
-      y:String(r+11)
-    });
-    nm.textContent=(p.name||'').length>7?(p.name||'').slice(0,6)+'…':(p.name||'');
-    g.appendChild(nm);
-
-    // "JUMP" micro-label for selected
-    if(isJumpSel){
-      const jl=mk('text',{'text-anchor':'middle','dominant-baseline':'central',
-        'font-size':'6.5','font-weight':'800','font-family':'Syne,sans-serif',
-        fill:JUMP_COLOR,y:String(-(r+11))
-      });
-      jl.textContent='JUMP!';g.appendChild(jl);
-    }
-
-    // Click handler for jump
-    if(isJumpable){
-      g.addEventListener('click',()=>selectJumpTarget(pid,p.name));
-    }
-
+    const nm=mk('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':'7','font-family':'Plus Jakarta Sans,sans-serif',fill:isElim?'#3a3a60':isJumpSel?'rgba(191,127,255,0.9)':'#7070a0',y:String(r+11)});
+    nm.textContent=(p.name||'').length>7?(p.name||'').slice(0,6)+'…':(p.name||'');g.appendChild(nm);
+    if(isJumpSel){const jl=mk('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':'6.5','font-weight':'800','font-family':'Syne,sans-serif',fill:JUMP_COLOR,y:String(-(r+11))});jl.textContent='JUMP!';g.appendChild(jl);}
+    if(isJumpable){g.addEventListener('click',()=>selectJumpTarget(pid,p.name));}
     svg.appendChild(g);
   });
 }
@@ -544,10 +700,13 @@ function showToast(msg,type){
 }
 document.addEventListener('click',e=>{
   const btn=e.target.closest('.btn');if(!btn)return;
+  // Ripple
   const r=document.createElement('span');r.className='ripple';
   const rect=btn.getBoundingClientRect(),size=Math.max(rect.width,rect.height)*1.5;
   r.style.cssText=`width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px`;
   btn.appendChild(r);setTimeout(()=>r.remove(),500);
+  // Click sound for non-primary buttons (primary ones handle their own sound)
+  if(!btn.classList.contains('btn-p')&&!btn.classList.contains('btn-jump')&&btn.id!=='sound-toggle'){sfx.click();}
 });
 function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$(id).classList.add('active');window.scrollTo(0,0);}
 const setErr=(id,msg)=>{const e=$(id);if(!e)return;e.textContent=msg;if(msg){e.style.animation='none';requestAnimationFrame(()=>{e.style.animation='';});}};
@@ -566,6 +725,7 @@ async function doCreate(){
   myName=(($('h-name').value)||'').trim();
   if(!myName){setErr('h-err','Enter your name first');return;}
   clrErr('h-err');setBtnLoading('btn-create',true);showLoader('Creating lobby…');
+  sfx.click();
   try{const d=await api('/api/create',{playerId:myId,playerName:myName});lobbyCode=d.code;amHost=true;lastUpdatedAt=toTs(d.lobby.updatedAt);openLobby();}
   catch(e){setErr('h-err',e.message);}
   finally{setBtnLoading('btn-create',false);hideLoader();}
@@ -576,11 +736,12 @@ async function doJoin(){
   if(!myName){setErr('h-err','Enter your name first');return;}
   if(code.length<4){setErr('h-err','Enter a valid lobby code');return;}
   clrErr('h-err');setBtnLoading('btn-join',true);showLoader('Joining lobby…');
+  sfx.click();
   try{lobbyCode=code;amHost=false;const d=await api('/api/join',{code,playerId:myId,playerName:myName});lastUpdatedAt=toTs(d.lobby.updatedAt);openLobby();}
   catch(e){setErr('h-err',e.message);}
   finally{setBtnLoading('btn-join',false);hideLoader();}
 }
-function goHome(){stopPoll();myNumber=null;selNum=null;selTarget=null;jumpTarget=null;lastUpdatedAt=0;show('s-home');}
+function goHome(){stopPoll();myNumber=null;selNum=null;selTarget=null;jumpTarget=null;lastUpdatedAt=0;_prevPlayerCount=0;_wasMyTurn=false;show('s-home');}
 
 /* ── Lobby ── */
 function openLobby(){
@@ -594,9 +755,13 @@ async function pollLobby(){
   catch(e){console.warn(e);}
 }
 function handleLobbyState(lobby){
-  if(lobby.gameState==='picking'){stopPoll();showLoader('Starting game…');goToPick(lobby);return;}
+  if(lobby.gameState==='picking'){stopPoll();showLoader('Starting game…');sfx.gameStart();goToPick(lobby);return;}
   if(lobby.gameState==='playing'){stopPoll();goToGame(lobby);return;}
   if(lobby.gameState==='over'){stopPoll();goToOver(lobby);return;}
+  // Detect new player joining
+  const count=Object.keys(lobby.players||{}).length;
+  if(count>_prevPlayerCount&&_prevPlayerCount>0){sfx.playerJoin();}
+  _prevPlayerCount=count;
   renderLobbyPlayers(lobby);
 }
 function renderLobbyPlayers(lobby){
@@ -615,11 +780,12 @@ function renderLobbyPlayers(lobby){
   if(btn){btn.textContent=`Start Game · ${count} player${count!==1?'s':''}`;btn.disabled=count<2;}
 }
 async function doStart(){
+  sfx.click();
   setBtnLoading('btn-start',true);showLoader('Starting game…');
   try{await api('/api/start',{code:lobbyCode,playerId:myId});}
   catch(e){alert(e.message);setBtnLoading('btn-start',false);hideLoader();}
 }
-async function doLeave(){stopPoll();try{await api('/api/leave',{code:lobbyCode,playerId:myId});}catch{}goHome();}
+async function doLeave(){stopPoll();sfx.click();try{await api('/api/leave',{code:lobbyCode,playerId:myId});}catch{}goHome();}
 
 /* ── Pick ── */
 function goToPick(lobby){
@@ -650,9 +816,11 @@ function pickNum(n,btn){
   if(myNumber)return;selNum=n;
   document.querySelectorAll('.nbtn').forEach(b=>b.classList.remove('sel'));
   btn.classList.add('sel');$('p-sel').textContent='Selected: '+n;$('btn-lock').disabled=false;
+  sfx.pick();
 }
 async function doLock(){
   if(!selNum)return;myNumber=selNum;
+  sfx.lock();
   $('btn-lock').disabled=true;$('btn-lock').textContent='✅ Locked!';
   document.querySelectorAll('.nbtn').forEach(b=>b.disabled=true);
   $('p-status-wrap').style.display='flex';$('p-status').textContent='Locked in! Waiting for others…';
@@ -664,7 +832,7 @@ async function doLock(){
 }
 
 /* ── Game ── */
-function goToGame(lobby){hideLoader();jumpTarget=null;show('s-game');renderGame(lobby);startPoll(pollGame);}
+function goToGame(lobby){hideLoader();jumpTarget=null;_wasMyTurn=false;show('s-game');renderGame(lobby);startPoll(pollGame);}
 async function pollGame(){
   try{
     const{lobby}=await api('/api/lobby?code='+lobbyCode);
@@ -673,20 +841,17 @@ async function pollGame(){
   }catch{}
 }
 
-/* Compute who the current player can jump-guess */
 function getJumpablePids(lobby){
   const me=lobby.players[myId];
   if(!me||me.eliminated)return new Set();
   const order=lobby.order||[];
   const alive=order.filter(pid=>lobby.players[pid]&&!lobby.players[pid].eliminated);
-  // Normal target = the next alive player after currentTurn in order
   const curIdx=alive.indexOf(lobby.currentTurn);
   const normalTargetId=alive.length>1?alive[(curIdx+1)%alive.length]:null;
-  // Jumpable = all alive except me, and except normal target IF it's my turn (that's just a regular guess)
   const jumpable=new Set();
   alive.forEach(pid=>{
     if(pid===myId)return;
-    if(lobby.currentTurn===myId&&pid===normalTargetId)return; // use normal guess for this
+    if(lobby.currentTurn===myId&&pid===normalTargetId)return;
     jumpable.add(pid);
   });
   return jumpable;
@@ -694,33 +859,26 @@ function getJumpablePids(lobby){
 
 function selectJumpTarget(pid,name){
   jumpTarget=pid;
+  sfx.jumpSelect();
   $('g-jump-target-name').textContent=name;
   $('g-jump-guess').value='';
   clrErr('g-jump-err');
   $('g-jump-panel').style.display='block';
-  // Re-render ring to highlight selected
   const lobby=_lastLobby;
-  if(lobby){
-    const jumpablePids=getJumpablePids(lobby);
-    buildRing(lobby.order||[],lobby.players||{},lobby.currentTurn,jumpablePids,jumpTarget);
-  }
-  // Scroll to panel
+  if(lobby){const jumpablePids=getJumpablePids(lobby);buildRing(lobby.order||[],lobby.players||{},lobby.currentTurn,jumpablePids,jumpTarget);}
   setTimeout(()=>$('g-jump-panel').scrollIntoView({behavior:'smooth',block:'nearest'}),80);
 }
 
 function cancelJump(){
   jumpTarget=null;
+  sfx.click();
   $('g-jump-panel').style.display='none';
   $('g-jump-guess').value='';
   clrErr('g-jump-err');
   const lobby=_lastLobby;
-  if(lobby){
-    const jumpablePids=getJumpablePids(lobby);
-    buildRing(lobby.order||[],lobby.players||{},lobby.currentTurn,jumpablePids,null);
-  }
+  if(lobby){const jumpablePids=getJumpablePids(lobby);buildRing(lobby.order||[],lobby.players||{},lobby.currentTurn,jumpablePids,null);}
 }
 
-// Store last lobby for ring re-renders
 let _lastLobby=null;
 
 function renderGame(lobby){
@@ -733,31 +891,20 @@ function renderGame(lobby){
   const jumpablePids=getJumpablePids(lobby);
   const imAlive=!amElim&&!!players[myId];
 
+  // Sound: play my turn alert when turn switches to me
+  if(isMyTurn&&!amElim&&!_wasMyTurn){sfx.myTurn();}
+  _wasMyTurn=isMyTurn;
+
   $('g-round').textContent='Round '+(lobby.round||1);
-
-  // Banner
   const banner=$('g-banner');
-  if(jumpTarget&&!amElim){
-    banner.textContent=`⚡ JUMP guessing ${players[jumpTarget]?.name||'?'}!`;
-    banner.className='banner banner-jump';
-  } else if(isMyTurn){
-    banner.textContent='⚡ Your turn — hulaan mo sila!';
-    banner.className='banner banner-turn';
-  } else if(amElim){
-    banner.textContent='💀 Nahulaan ka na! Panoorin mo na lang.';
-    banner.className='banner banner-elim';
-  } else {
-    banner.textContent=(cur?cur.name:'?')+' Thinking...';
-    banner.className='banner banner-wait';
-  }
+  if(jumpTarget&&!amElim){banner.textContent=`⚡ JUMP guessing ${players[jumpTarget]?.name||'?'}!`;banner.className='banner banner-jump';}
+  else if(isMyTurn){banner.textContent='⚡ Your turn — hulaan mo sila!';banner.className='banner banner-turn';}
+  else if(amElim){banner.textContent='💀 Nahulaan ka na! Panoorin mo na lang.';banner.className='banner banner-elim';}
+  else{banner.textContent=(cur?cur.name:'?')+' Thinking...';banner.className='banner banner-wait';}
 
-  // Jump tip
   $('g-jump-tip').style.display=(imAlive&&jumpablePids.size>0)?'flex':'none';
-
-  // Ring
   buildRing(order,players,lobby.currentTurn,imAlive?jumpablePids:new Set(),imAlive?jumpTarget:null);
 
-  // Players list
   const ul=$('g-players');ul.innerHTML='';
   order.forEach((pid,idx)=>{
     const p=players[pid];if(!p)return;
@@ -774,21 +921,15 @@ function renderGame(lobby){
     ul.appendChild(li);
   });
 
-  // Show/hide panels
   $('g-myturn').style.display=(isMyTurn&&!amElim)?'block':'none';
-  // Keep jump panel visible if a jump target is selected (any alive player can jump)
   $('g-jump-panel').style.display=(jumpTarget&&imAlive)?'block':'none';
   $('g-wait').style.display=(!isMyTurn&&!amElim&&!jumpTarget)?'block':'none';
   $('g-elim').style.display=amElim?'block':'none';
   if(!isMyTurn&&!amElim)$('g-wait-msg').textContent='⏳ Hinihintay si '+(cur?cur.name:'?')+' na manghula…';
 
-  // Build normal target grid (only on my turn)
   if(isMyTurn&&!amElim){
     const tg=$('g-targets');
-    // Normal target = next after currentTurn in alive order
-    const curIdx=alive.indexOf(myId);
     const normalTargets=alive.filter(pid=>pid!==myId);
-    // Pre-select first if nothing selected
     const key=normalTargets.join(',');
     if(tg.dataset.built!==key){
       tg.innerHTML='';tg.dataset.built=key;
@@ -803,7 +944,7 @@ function renderGame(lobby){
         const hintDiv=document.createElement('div');hintDiv.className='t-hint';hintDiv.textContent=isSelected?'Selected ✓':'Tap to target';
         b.appendChild(nameDiv);b.appendChild(hintDiv);
         b.onclick=()=>{
-          selTarget=pid;$('g-auto-notice').style.display='none';
+          selTarget=pid;sfx.click();$('g-auto-notice').style.display='none';
           document.querySelectorAll('.tbtn').forEach(x=>{x.classList.remove('sel','auto-sel');x.querySelector('.t-hint').textContent='Tap to target';});
           b.classList.add('sel');b.querySelector('.t-hint').textContent='Selected ✓';
         };
@@ -819,13 +960,14 @@ async function doGuess(){
   const gval=parseInt($('g-guess').value);
   if(!selTarget){setErr('g-err','Choose a target first');return;}
   if(isNaN(gval)||gval<1||gval>99){setErr('g-err','Enter a number between 1 and 99');return;}
+  sfx.guess();
   setBtnLoading('btn-guess',true);
   try{
     const{lobby,correct,hint}=await api('/api/guess',{code:lobbyCode,playerId:myId,targetId:selTarget,guess:gval,isJump:false});
     lastUpdatedAt=toTs(lobby.updatedAt);
-    if(correct)showToast('💥 Correct! Eliminated!','correct');
-    else if(hint&&hint.includes('low'))showToast('🔼 Too low!','low');
-    else if(hint&&hint.includes('high'))showToast('🔽 Too high!','high');
+    if(correct){showToast('💥 Correct! Eliminated!','correct');sfx.eliminate();}
+    else if(hint&&hint.includes('low')){showToast('🔼 Too low!','low');sfx.low();}
+    else if(hint&&hint.includes('high')){showToast('🔽 Too high!','high');sfx.high();}
     $('g-guess').value='';selTarget=null;jumpTarget=null;
     document.querySelectorAll('.tbtn').forEach(b=>b.classList.remove('sel','auto-sel'));
     $('g-targets').dataset.built='';$('g-auto-notice').style.display='none';
@@ -841,15 +983,13 @@ async function doJumpGuess(){
   const gval=parseInt($('g-jump-guess').value);
   if(!jumpTarget){setErr('g-jump-err','No jump target selected');return;}
   if(isNaN(gval)||gval<1||gval>99){setErr('g-jump-err','Enter a number between 1 and 99');return;}
+  sfx.guess();
   setBtnLoading('btn-jump-guess',true);
   try{
     const{lobby,correct}=await api('/api/guess',{code:lobbyCode,playerId:myId,targetId:jumpTarget,guess:gval,isJump:true});
     lastUpdatedAt=toTs(lobby.updatedAt);
-    if(correct){
-      showToast('⚡ YES! Jump correct! Eliminated!','jump-yes');
-    } else {
-      showToast('✗ NO — wrong jump guess','jump-no');
-    }
+    if(correct){showToast('⚡ YES! Jump correct! Eliminated!','jump-yes');sfx.jumpHit();}
+    else{showToast('✗ NO — wrong jump guess','jump-no');sfx.jumpMiss();}
     $('g-jump-guess').value='';
     jumpTarget=null;
     $('g-jump-panel').style.display='none';
@@ -861,6 +1001,10 @@ async function doJumpGuess(){
 /* ── Game Over ── */
 function goToOver(lobby){
   show('s-over');
+  // Win or eliminated?
+  const iWon=lobby.winner===myId;
+  setTimeout(()=>iWon?sfx.win():sfx.eliminated(),200);
+
   const players=lobby.players||{},order=lobby.order||[];
   const w=players[lobby.winner];$('o-winner').textContent=w?w.name:'?';
   const ul=$('o-players');ul.innerHTML='';
@@ -888,10 +1032,11 @@ function goToOver(lobby){
 }
 
 async function doAgain(){
+  sfx.click();
   showLoader('Restarting…');
   try{
     const{lobby}=await api('/api/again',{code:lobbyCode});
-    lastUpdatedAt=toTs(lobby.updatedAt);myNumber=null;selNum=null;selTarget=null;jumpTarget=null;
+    lastUpdatedAt=toTs(lobby.updatedAt);myNumber=null;selNum=null;selTarget=null;jumpTarget=null;_wasMyTurn=false;
     amHost=lobby.host===myId;openLobby();
   }catch(e){alert(e.message);hideLoader();}
 }
