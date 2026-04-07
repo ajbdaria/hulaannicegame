@@ -172,13 +172,9 @@ input::placeholder{color:var(--text3)}
 .pick-dot.locked{background:var(--green);box-shadow:0 0 8px var(--green);animation:dotPulse 1.4s ease-in-out infinite}
 @keyframes dotPulse{0%,100%{box-shadow:0 0 8px var(--green)}50%{box-shadow:0 0 16px var(--green)}}
 .auto-notice{font-size:11px;color:var(--green);background:var(--green-dim);border:1px solid rgba(61,255,160,.2);border-radius:8px;padding:7px 11px;margin-bottom:8px;font-family:var(--mono);display:flex;align-items:center;gap:6px}
-
-/* Sound toggle button */
 #sound-toggle{position:fixed;top:14px;right:16px;z-index:800;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:6px 10px;font-size:16px;cursor:pointer;transition:all .18s;line-height:1;}
 #sound-toggle:hover{border-color:var(--accent);background:var(--surface3);}
 #sound-toggle.muted{opacity:.4;}
-
-/* ── TURN RING ── */
 #turn-ring-wrap{width:100%;max-width:300px;margin:0 auto 12px;aspect-ratio:1;position:relative;}
 #turn-ring-svg{width:100%;height:100%;overflow:visible;}
 .ring-player-node{cursor:pointer;}
@@ -199,13 +195,13 @@ input::placeholder{color:var(--text3)}
 .ring-jump-glow{animation:jumpGlowPulse 1s ease-in-out infinite;}
 .ring-jump-bounce{animation:jumpNodeBounce 1s ease-in-out infinite;}
 .ring-jump-selected .ring-jump-spin{stroke:#bf7fff;stroke-width:3;stroke-dasharray:6 3;animation-duration:.5s;}
-
-/* ── GUESS BUBBLE (center of ring) ── */
-@keyframes guessBubblePop{0%{opacity:0;transform:scale(0.5)}60%{transform:scale(1.12)}100%{opacity:1;transform:scale(1)}}
+/* Flash-then-fade for center bubble and node badges */
+@keyframes guessBubblePop{0%{opacity:0;transform:scale(0.5)}60%{transform:scale(1.12)}80%{opacity:1;transform:scale(1)}100%{opacity:1;transform:scale(1)}}
+@keyframes guessBubbleFade{0%{opacity:1}100%{opacity:0}}
 @keyframes hintArrowBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
 .guess-bubble-anim{animation:guessBubblePop .35s cubic-bezier(.34,1.56,.64,1) both;}
+.guess-bubble-fade{animation:guessBubbleFade .6s ease forwards;}
 .hint-arrow-anim{animation:hintArrowBounce .8s ease-in-out infinite;}
-
 @media(prefers-reduced-motion:reduce){.ring-flow-arc,.ring-avatar-pulse,.ring-glow-pulse,.ring-jump-spin,.ring-jump-glow,.ring-jump-bounce{animation:none!important;}.guess-bubble-anim,.hint-arrow-anim{animation:none!important;}}
 </style>
 </head>
@@ -367,34 +363,29 @@ input::placeholder{color:var(--text3)}
 const $=id=>document.getElementById(id);
 
 /* ══════════════════════════════════════════
-   🔊 SOUND ENGINE — Web Audio API (no files)
+   🔊 SOUND ENGINE
    ══════════════════════════════════════════ */
 let audioCtx=null,soundEnabled=true;
-
 function getCtx(){
   if(!audioCtx){audioCtx=new(window.AudioContext||window.webkitAudioContext)();}
   if(audioCtx.state==='suspended')audioCtx.resume();
   return audioCtx;
 }
-
 function toggleSound(){
   soundEnabled=!soundEnabled;
   $('sound-toggle').textContent=soundEnabled?'🔊':'🔇';
   $('sound-toggle').classList.toggle('muted',!soundEnabled);
   if(soundEnabled)sfx.click();
 }
-
 function tone(freq,type,vol,dur,startTime,ctx){
   const t=startTime||ctx.currentTime;
-  const osc=ctx.createOscillator();
-  const gain=ctx.createGain();
+  const osc=ctx.createOscillator(),gain=ctx.createGain();
   osc.connect(gain);gain.connect(ctx.destination);
   osc.type=type||'sine';osc.frequency.setValueAtTime(freq,t);
   gain.gain.setValueAtTime(vol||0.3,t);
   gain.gain.exponentialRampToValueAtTime(0.0001,t+(dur||0.3));
   osc.start(t);osc.stop(t+(dur||0.3)+0.01);
 }
-
 function noise(vol,dur,startTime,ctx){
   const t=startTime||ctx.currentTime;
   const buf=ctx.createBuffer(1,ctx.sampleRate*dur,ctx.sampleRate);
@@ -407,7 +398,6 @@ function noise(vol,dur,startTime,ctx){
   gain.gain.exponentialRampToValueAtTime(0.0001,t+dur);
   src.start(t);src.stop(t+dur+0.01);
 }
-
 const sfx={
   click(){if(!soundEnabled)return;try{const c=getCtx();tone(600,'sine',0.15,0.06,null,c);}catch{}},
   pick(){if(!soundEnabled)return;try{const c=getCtx(),t=c.currentTime;tone(880,'sine',0.2,0.08,t,c);tone(1320,'sine',0.1,0.06,t+0.04,c);}catch{}},
@@ -452,12 +442,16 @@ const sfx={
 const myId='p_'+Math.random().toString(36).slice(2,9);
 let myName='',lobbyCode='',amHost=false,myNumber=null;
 let selNum=null,selTarget=null,jumpTarget=null,pollTimer=null,lastUpdatedAt=0;
-let _prevPlayerCount=0;
-let _wasMyTurn=false;
+let _prevPlayerCount=0,_wasMyTurn=false;
 
-// ── Guess history: { targetId -> { guesser, guessNum, hint, isJump, ts } }
-// Stores the MOST RECENT guess against each player, for display in the ring
+/*
+  _guessHistory: { targetId -> { guesser, guessNum, hint, isJump, ts } }
+  - Rebuilt fresh each poll from the server log so ALL players see the same data.
+  - Each entry has a `ts` (timestamp in ms). The ring and center display only
+    show the bubble while (now - ts) < GUESS_DISPLAY_MS, then it disappears.
+*/
 let _guessHistory = {};
+const GUESS_DISPLAY_MS = 4000; // bubble visible for 4 seconds after a guess
 
 function avatarColor(idx){return['green','blue','purple','red'][idx%4];}
 function avatarInitial(name){return(name||'?')[0].toUpperCase();}
@@ -487,17 +481,20 @@ function ringArcPath(i,ni,n){
 }
 
 /* ── Draw center guess display ── */
-function drawCenterGuess(svg,players,order){
+function drawCenterGuess(svg,players){
   const mk=(tag,attrs)=>{const el=document.createElementNS(SVG_NS,tag);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));return el;};
+  const now=Date.now();
 
-  // Find the most recent guess event across all targets
+  // Find the most recent guess that is still within the display window
   let latestEntry=null,latestTs=0;
   for(const [tid,entry] of Object.entries(_guessHistory)){
-    if(entry.ts>latestTs){latestTs=entry.ts;latestEntry={targetId:tid,...entry};}
+    if(entry.ts>latestTs&&(now-entry.ts)<GUESS_DISPLAY_MS){
+      latestTs=entry.ts;latestEntry={targetId:tid,...entry};
+    }
   }
 
   if(!latestEntry){
-    // Default: show HULAAN! label
+    // Default idle label
     const ct=mk('text',{'text-anchor':'middle','dominant-baseline':'central',fill:'#3a3a60','font-size':'10','font-family':'Syne,sans-serif','font-weight':'700','letter-spacing':'2',y:'-5'});
     ct.textContent='HULAAN!';svg.appendChild(ct);
     const cs=mk('text',{'text-anchor':'middle','dominant-baseline':'central',fill:'#3a3a60','font-size':'8','font-family':'Plus Jakarta Sans,sans-serif',y:'7'});
@@ -505,49 +502,42 @@ function drawCenterGuess(svg,players,order){
     return;
   }
 
-  const {guesser, guessNum, hint, isJump, targetId} = latestEntry;
-  const targetPlayer = players[targetId];
-  const targetName = targetPlayer ? targetPlayer.name : '?';
+  const {guesser,guessNum,hint,isJump,targetId}=latestEntry;
+  const targetName=(players[targetId]||{}).name||'?';
+  const elapsed=now-latestTs;
+  // Fade out in the last 1 second of display window
+  const fadeOpacity=elapsed>(GUESS_DISPLAY_MS-1000)?Math.max(0,1-(elapsed-(GUESS_DISPLAY_MS-1000))/1000):1;
 
-  // Color based on hint
-  const isHigh = hint==='high';
-  const isLow  = hint==='low';
-  const isHit  = hint==='correct';
-  const numColor = isHit?'#3dffa0': isJump&&!isHit?'#bf7fff': isHigh?'#ff4f6a':'#5eb8ff';
-  const arrowChar = isHit?'✓': isHigh?'▼':'▲';
-  const arrowColor = isHit?'#3dffa0': isHigh?'#ff4f6a':'#5eb8ff';
-  const bgColor = isHit?'rgba(61,255,160,0.12)': isJump&&!isHit?'rgba(191,127,255,0.12)': isHigh?'rgba(255,79,106,0.1)':'rgba(94,184,255,0.1)';
-  const strokeColor = isHit?'rgba(61,255,160,0.4)': isJump&&!isHit?'rgba(191,127,255,0.4)': isHigh?'rgba(255,79,106,0.3)':'rgba(94,184,255,0.3)';
+  const isHit=hint==='correct',isHigh=hint==='high';
+  const numColor=isHit?'#3dffa0':isJump?'#bf7fff':isHigh?'#ff4f6a':'#5eb8ff';
+  const arrowChar=isHit?'✓':isHigh?'▼':'▲';
+  const arrowColor=isHit?'#3dffa0':isHigh?'#ff4f6a':'#5eb8ff';
+  const bgColor=isHit?'rgba(61,255,160,0.12)':isJump?'rgba(191,127,255,0.12)':isHigh?'rgba(255,79,106,0.1)':'rgba(94,184,255,0.1)';
+  const strokeColor=isHit?'rgba(61,255,160,0.4)':isJump?'rgba(191,127,255,0.4)':isHigh?'rgba(255,79,106,0.3)':'rgba(94,184,255,0.3)';
 
-  // Background pill
-  const g=mk('g',{});
+  const g=mk('g',{opacity:String(fadeOpacity)});
   g.classList.add('guess-bubble-anim');
-  const bg=mk('rect',{x:'-36',y:'-38',width:'72',height:'76',rx:'12',fill:bgColor,stroke:strokeColor,'stroke-width':'1'});
-  g.appendChild(bg);
+  g.appendChild(mk('rect',{x:'-36',y:'-38',width:'72',height:'76',rx:'12',fill:bgColor,stroke:strokeColor,'stroke-width':'1'}));
 
-  // Guesser label (tiny, top)
   const glabel=mk('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':'7','font-family':'Plus Jakarta Sans,sans-serif',fill:'#7070a0',y:'-25'});
   glabel.textContent=(guesser.length>8?guesser.slice(0,7)+'…':guesser)+' guessed';
   g.appendChild(glabel);
 
-  // The big number
   const numTxt=mk('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':'26','font-family':'Syne,sans-serif','font-weight':'800',fill:numColor,y:'-5'});
   numTxt.textContent=String(guessNum);
   g.appendChild(numTxt);
 
-  // Arrow hint (animated if not a hit)
   if(!isHit){
     const arr=mk('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':'9','font-family':'Syne,sans-serif','font-weight':'700',fill:arrowColor,y:'17'});
     arr.textContent=arrowChar+(isHigh?' too high':' too low');
-    if(!isHit)arr.classList.add('hint-arrow-anim');
+    arr.classList.add('hint-arrow-anim');
     g.appendChild(arr);
-  } else {
+  }else{
     const hitTxt=mk('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':'9','font-family':'Syne,sans-serif','font-weight':'700',fill:'#3dffa0',y:'17'});
     hitTxt.textContent='✓ CORRECT!';
     g.appendChild(hitTxt);
   }
 
-  // Target label (bottom)
   const tlabel=mk('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':'7','font-family':'Plus Jakarta Sans,sans-serif',fill:'#7070a0',y:'29'});
   tlabel.textContent='→ '+(targetName.length>8?targetName.slice(0,7)+'…':targetName);
   g.appendChild(tlabel);
@@ -559,9 +549,9 @@ function buildRing(order,players,curId,jumpablePids,curJumpTarget){
   const svg=$('turn-ring-svg');svg.innerHTML='';
   const n=order.length;if(!n)return;
   const mk=(tag,attrs)=>{const el=document.createElementNS(SVG_NS,tag);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,v));return el;};
+  const now=Date.now();
 
-  // Draw center guess display first (it's behind everything)
-  drawCenterGuess(svg,players,order);
+  drawCenterGuess(svg,players);
 
   order.forEach((pid,i)=>{
     const p=players[pid];if(!p)return;
@@ -591,20 +581,23 @@ function buildRing(order,players,curId,jumpablePids,curJumpTarget){
     if(isJumpable&&!isElim){const jglow=mk('circle',{cx:'0',cy:'0',r:String(RING_R_JUMP+8),fill:JUMP_COLOR,opacity:isJumpSel?'0.28':'0.12'});jglow.classList.add('ring-jump-glow');g.appendChild(jglow);}
     const r=isCur?RING_R_BIG:isJumpable?RING_R_JUMP:RING_R_NORM;
 
-    // ── Show last guess bubble on the player node if they've been guessed ──
+    // Node badge — only show if within display window
     const lastGuess=_guessHistory[pid];
-    if(lastGuess&&!isElim){
-      const bubbleG=mk('g',{transform:'translate(10,-14)'});
+    const badgeVisible=lastGuess&&!isElim&&(now-lastGuess.ts)<GUESS_DISPLAY_MS;
+    if(badgeVisible){
+      const elapsed=now-lastGuess.ts;
+      const bOpacity=elapsed>(GUESS_DISPLAY_MS-1000)?Math.max(0,1-(elapsed-(GUESS_DISPLAY_MS-1000))/1000):1;
+      const bubbleG=mk('g',{transform:'translate(10,-14)',opacity:String(bOpacity)});
       const hint=lastGuess.hint;
       const bColor=hint==='correct'?'#3dffa0':hint==='high'?'#ff4f6a':'#5eb8ff';
       const bBg=hint==='correct'?'rgba(61,255,160,0.25)':hint==='high'?'rgba(255,79,106,0.25)':'rgba(94,184,255,0.25)';
       const bText=hint==='correct'?'✓':hint==='high'?'▼':'▲';
-      const bubble=mk('rect',{x:'-12',y:'-9',width:'26',height:'17',rx:'5',fill:bBg,stroke:bColor,'stroke-width':'1.2'});
+      bubbleG.appendChild(mk('rect',{x:'-12',y:'-9',width:'26',height:'17',rx:'5',fill:bBg,stroke:bColor,'stroke-width':'1.2'}));
       const numT=mk('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':'9','font-family':'Syne,sans-serif','font-weight':'800',fill:bColor,y:'-2'});
       numT.textContent=String(lastGuess.guessNum);
       const arrT=mk('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':'7',fill:bColor,y:'6'});
       arrT.textContent=bText;
-      bubbleG.appendChild(bubble);bubbleG.appendChild(numT);bubbleG.appendChild(arrT);
+      bubbleG.appendChild(numT);bubbleG.appendChild(arrT);
       g.appendChild(bubbleG);
     }
 
@@ -657,8 +650,7 @@ function stopPoll(){if(pollTimer){clearInterval(pollTimer);pollTimer=null;}}
 async function doCreate(){
   myName=(($('h-name').value)||'').trim();
   if(!myName){setErr('h-err','Enter your name first');return;}
-  clrErr('h-err');setBtnLoading('btn-create',true);showLoader('Creating lobby…');
-  sfx.click();
+  clrErr('h-err');setBtnLoading('btn-create',true);showLoader('Creating lobby…');sfx.click();
   try{const d=await api('/api/create',{playerId:myId,playerName:myName});lobbyCode=d.code;amHost=true;lastUpdatedAt=toTs(d.lobby.updatedAt);openLobby();}
   catch(e){setErr('h-err',e.message);}
   finally{setBtnLoading('btn-create',false);hideLoader();}
@@ -668,8 +660,7 @@ async function doJoin(){
   const code=(($('h-code').value)||'').trim().toUpperCase();
   if(!myName){setErr('h-err','Enter your name first');return;}
   if(code.length<4){setErr('h-err','Enter a valid lobby code');return;}
-  clrErr('h-err');setBtnLoading('btn-join',true);showLoader('Joining lobby…');
-  sfx.click();
+  clrErr('h-err');setBtnLoading('btn-join',true);showLoader('Joining lobby…');sfx.click();
   try{lobbyCode=code;amHost=false;const d=await api('/api/join',{code,playerId:myId,playerName:myName});lastUpdatedAt=toTs(d.lobby.updatedAt);openLobby();}
   catch(e){setErr('h-err',e.message);}
   finally{setBtnLoading('btn-join',false);hideLoader();}
@@ -712,8 +703,7 @@ function renderLobbyPlayers(lobby){
   if(btn){btn.textContent=`Start Game · ${count} player${count!==1?'s':''}`;btn.disabled=count<2;}
 }
 async function doStart(){
-  sfx.click();
-  setBtnLoading('btn-start',true);showLoader('Starting game…');
+  sfx.click();setBtnLoading('btn-start',true);showLoader('Starting game…');
   try{await api('/api/start',{code:lobbyCode,playerId:myId});}
   catch(e){alert(e.message);setBtnLoading('btn-start',false);hideLoader();}
 }
@@ -751,8 +741,7 @@ function pickNum(n,btn){
   sfx.pick();
 }
 async function doLock(){
-  if(!selNum)return;myNumber=selNum;
-  sfx.lock();
+  if(!selNum)return;myNumber=selNum;sfx.lock();
   $('btn-lock').disabled=true;$('btn-lock').textContent='✅ Locked!';
   document.querySelectorAll('.nbtn').forEach(b=>b.disabled=true);
   $('p-status-wrap').style.display='flex';$('p-status').textContent='Locked in! Waiting for others…';
@@ -764,60 +753,103 @@ async function doLock(){
 }
 
 /* ── Game ── */
-function goToGame(lobby){hideLoader();jumpTarget=null;_wasMyTurn=false;_guessHistory={};show('s-game');renderGame(lobby);startPoll(pollGame);}
+function goToGame(lobby){
+  hideLoader();jumpTarget=null;_wasMyTurn=false;_guessHistory={};
+  show('s-game');
+  // Sync guess history immediately so joining players see current state
+  syncGuessHistoryFromLog(lobby);
+  renderGame(lobby);
+  startPoll(pollGame);
+}
+
 async function pollGame(){
   try{
     const{lobby}=await api('/api/lobby?code='+lobbyCode);
     const upd=toTs(lobby.updatedAt);
-    if(upd!==lastUpdatedAt){lastUpdatedAt=upd;if(lobby.gameState==='over'){stopPoll();goToOver(lobby);return;}
-
-    // Parse the lobby log to hydrate guess history for other players' moves
-    syncGuessHistoryFromLog(lobby);
-
-    renderGame(lobby);}
+    if(upd!==lastUpdatedAt){
+      lastUpdatedAt=upd;
+      if(lobby.gameState==='over'){stopPoll();goToOver(lobby);return;}
+      syncGuessHistoryFromLog(lobby);
+      renderGame(lobby);
+    } else {
+      // Even when lobby hasn't changed, re-render to update fading bubbles
+      if(hasActiveBubbles()){renderGame(lobby);}
+    }
   }catch{}
 }
 
-/**
- * Parse the lobby log entries to rebuild guess history so all players see
- * the guess bubbles, not just the one who guessed.
- * Log format examples:
- *   "Alice guessed 42 for Bob → Too high"
- *   "Alice guessed 42 for Bob → Too low"
- *   "Alice guessed 42 for Bob → CORRECT! Bob (42) eliminated!"
- *   "[JUMP] Alice guessed 42 for Bob → ..."
- */
+/* Returns true if any bubble is currently within the display window */
+function hasActiveBubbles(){
+  const now=Date.now();
+  return Object.values(_guessHistory).some(e=>(now-e.ts)<GUESS_DISPLAY_MS);
+}
+
+/*
+  Rebuild _guessHistory from scratch on every call using the full server log.
+  This ensures ALL players (not just the one who guessed) see the same bubbles.
+  Because we rebuild from scratch, we preserve the LAST guess per target
+  (later log entries overwrite earlier ones for the same target).
+  We assign ts based on relative order within the log — newest entries get
+  a ts closer to now, older entries get progressively older ts values so they
+  respect the display window correctly.
+*/
 function syncGuessHistoryFromLog(lobby){
   if(!lobby.log||!lobby.log.length)return;
   const players=lobby.players||{};
+
   // Build name→id map
   const nameToId={};
   for(const [pid,p] of Object.entries(players)){nameToId[p.name]=pid;}
 
-  // Only process new log entries (avoid re-animating old ones)
-  const logEntries=lobby.log||[];
-  logEntries.forEach(entry=>{
-    // Match: "[JUMP] Guesser guessed NUM for Target → ..."  OR  "Guesser guessed NUM for Target → ..."
+  // Parse all guess entries from the log (in order)
+  const parsed=[];
+  (lobby.log||[]).forEach(entry=>{
     const m=entry.match(/^(?:\[JUMP\]\s+)?(.+?)\s+guessed\s+(\d+)\s+for\s+(.+?)\s+→\s+(.+)$/i);
     if(!m)return;
-    const [,gName,numStr,tName,result]=m;
+    const[,gName,numStr,tName,result]=m;
     const guesser=gName.trim();
     const guessNum=parseInt(numStr);
     const targetName=tName.trim();
     const isJump=entry.startsWith('[JUMP]');
-    const resultLower=result.toLowerCase();
+    const rl=result.toLowerCase();
     let hint='low';
-    if(resultLower.includes('correct'))hint='correct';
-    else if(resultLower.includes('high'))hint='high';
-    else if(resultLower.includes('low'))hint='low';
+    if(rl.includes('correct'))hint='correct';
+    else if(rl.includes('high'))hint='high';
     const targetId=nameToId[targetName];
     if(!targetId)return;
-    // Only update if this represents a new/different guess for this target
-    const existing=_guessHistory[targetId];
-    if(!existing||existing.guessNum!==guessNum||existing.guesser!==guesser){
-      _guessHistory[targetId]={guesser,guessNum,hint,isJump,ts:Date.now()};
+    parsed.push({targetId,guesser,guessNum,hint,isJump});
+  });
+
+  if(!parsed.length)return;
+
+  // Assign timestamps: most recent log entry = now, older entries spaced back
+  // so earlier ones fall outside the display window naturally.
+  // We give each step a 200ms gap so rapid guesses all appear briefly.
+  const now=Date.now();
+  const newHistory={};
+  parsed.forEach((entry,i)=>{
+    const age=(parsed.length-1-i)*200; // newer = smaller age
+    const ts=now-age;
+    // Only store if this ts is fresher than what we already have for this target
+    if(!newHistory[entry.targetId]||ts>newHistory[entry.targetId].ts){
+      newHistory[entry.targetId]={
+        guesser:entry.guesser,
+        guessNum:entry.guessNum,
+        hint:entry.hint,
+        isJump:entry.isJump,
+        ts
+      };
     }
   });
+
+  // Merge: keep existing entries only if they are NEWER than what the log gives us
+  // (this handles the case where the local player just guessed and the log hasn't
+  //  updated yet — their local ts will be newer)
+  for(const [tid,entry] of Object.entries(newHistory)){
+    if(!_guessHistory[tid]||entry.ts>_guessHistory[tid].ts){
+      _guessHistory[tid]=entry;
+    }
+  }
 }
 
 function getJumpablePids(lobby){
@@ -837,25 +869,21 @@ function getJumpablePids(lobby){
 }
 
 function selectJumpTarget(pid,name){
-  jumpTarget=pid;
-  sfx.jumpSelect();
+  jumpTarget=pid;sfx.jumpSelect();
   $('g-jump-target-name').textContent=name;
-  $('g-jump-guess').value='';
-  clrErr('g-jump-err');
+  $('g-jump-guess').value='';clrErr('g-jump-err');
   $('g-jump-panel').style.display='block';
   const lobby=_lastLobby;
-  if(lobby){const jumpablePids=getJumpablePids(lobby);buildRing(lobby.order||[],lobby.players||{},lobby.currentTurn,jumpablePids,jumpTarget);}
+  if(lobby){buildRing(lobby.order||[],lobby.players||{},lobby.currentTurn,getJumpablePids(lobby),jumpTarget);}
   setTimeout(()=>$('g-jump-panel').scrollIntoView({behavior:'smooth',block:'nearest'}),80);
 }
 
 function cancelJump(){
-  jumpTarget=null;
-  sfx.click();
+  jumpTarget=null;sfx.click();
   $('g-jump-panel').style.display='none';
-  $('g-jump-guess').value='';
-  clrErr('g-jump-err');
+  $('g-jump-guess').value='';clrErr('g-jump-err');
   const lobby=_lastLobby;
-  if(lobby){const jumpablePids=getJumpablePids(lobby);buildRing(lobby.order||[],lobby.players||{},lobby.currentTurn,jumpablePids,null);}
+  if(lobby){buildRing(lobby.order||[],lobby.players||{},lobby.currentTurn,getJumpablePids(lobby),null);}
 }
 
 let _lastLobby=null;
@@ -892,18 +920,6 @@ function renderGame(lobby){
     if(pid===lobby.currentTurn&&!p.eliminated)nm.style.color='var(--accent)';
     if(pid===jumpTarget)nm.style.color='var(--jump)';
     li.appendChild(nm);
-
-    // Show last guess info inline in player list
-    const lastG=_guessHistory[pid];
-    if(lastG&&!p.eliminated){
-      const gTag=document.createElement('span');
-      const hc=lastG.hint==='correct'?'var(--green)':lastG.hint==='high'?'var(--red)':'var(--blue)';
-      const ht=lastG.hint==='correct'?'✓':lastG.hint==='high'?'▼ hi':'▲ lo';
-      gTag.style.cssText=`font-family:var(--mono);font-size:9px;color:${hc};background:transparent;border:1px solid ${hc};border-radius:5px;padding:1px 5px;margin-left:4px;opacity:0.85;white-space:nowrap;`;
-      gTag.textContent=`${lastG.guessNum} ${ht}`;
-      li.appendChild(gTag);
-    }
-
     if(pid===myId&&!p.eliminated){const t=document.createElement('span');t.className='my-num';t.textContent='#'+myNumber;li.appendChild(t);}
     else if(pid===jumpTarget&&!p.eliminated){const t=document.createElement('span');t.className='tag';t.style.cssText='background:var(--jump-dim);color:var(--jump);border:1px solid rgba(191,127,255,.3)';t.textContent='⚡ jump';li.appendChild(t);}
     else if(pid===lobby.currentTurn&&!p.eliminated){const t=document.createElement('span');t.className='tag tag-turn';t.textContent='guessing';li.appendChild(t);}
@@ -931,32 +947,32 @@ function renderGame(lobby){
         const isSelected=pid===selTarget,isAuto=isSelected&&isFirstBuild&&i===0;
         b.className='tbtn'+(isSelected?' sel':'')+(isAuto?' auto-sel':'');b.dataset.pid=pid;
         const nameDiv=document.createElement('div');nameDiv.className='t-name';nameDiv.textContent=p.name;
-
-        // Show last guess hint for this target inside the target button
         const lastG2=_guessHistory[pid];
-        if(lastG2){
+        const now=Date.now();
+        const hintVisible=lastG2&&(now-lastG2.ts)<GUESS_DISPLAY_MS;
+        if(hintVisible){
           const hintColor=lastG2.hint==='correct'?'#3dffa0':lastG2.hint==='high'?'#ff4f6a':'#5eb8ff';
           const hintArrow=lastG2.hint==='high'?'▼ Try lower':'▲ Try higher';
-          const hintDiv=document.createElement('div');
-          hintDiv.className='t-hint';
+          const hintDiv=document.createElement('div');hintDiv.className='t-hint';
           hintDiv.style.color=hintColor;
           hintDiv.textContent=`Last: ${lastG2.guessNum} → ${hintArrow}`;
           b.appendChild(nameDiv);b.appendChild(hintDiv);
-        } else {
+        }else{
           const hintDiv=document.createElement('div');hintDiv.className='t-hint';hintDiv.textContent=isSelected?'Selected ✓':'Tap to target';
           b.appendChild(nameDiv);b.appendChild(hintDiv);
         }
-
         b.onclick=()=>{
           selTarget=pid;sfx.click();$('g-auto-notice').style.display='none';
           document.querySelectorAll('.tbtn').forEach(x=>{
             x.classList.remove('sel','auto-sel');
             const pid2=x.dataset.pid;
-            const lastG3=_guessHistory[pid2];
-            if(!lastG3){x.querySelector('.t-hint').textContent='Tap to target';}
+            const lg=_guessHistory[pid2];
+            const nv=lg&&(Date.now()-lg.ts)<GUESS_DISPLAY_MS;
+            if(!nv)x.querySelector('.t-hint').textContent='Tap to target';
           });
           b.classList.add('sel');
-          if(!lastG2)b.querySelector('.t-hint').textContent='Selected ✓';
+          const lg=_guessHistory[pid];
+          if(!lg||(Date.now()-lg.ts)>=GUESS_DISPLAY_MS)b.querySelector('.t-hint').textContent='Selected ✓';
         };
         tg.appendChild(b);
       });
@@ -970,27 +986,21 @@ async function doGuess(){
   const gval=parseInt($('g-guess').value);
   if(!selTarget){setErr('g-err','Choose a target first');return;}
   if(isNaN(gval)||gval<1||gval>99){setErr('g-err','Enter a number between 1 and 99');return;}
-  sfx.guess();
-  setBtnLoading('btn-guess',true);
+  sfx.guess();setBtnLoading('btn-guess',true);
   try{
     const{lobby,correct,hint}=await api('/api/guess',{code:lobbyCode,playerId:myId,targetId:selTarget,guess:gval,isJump:false});
     lastUpdatedAt=toTs(lobby.updatedAt);
-
-    // Store guess in local history
-    const targetName=(lobby.players[selTarget]||{}).name||'?';
     const resolvedHint=correct?'correct':hint&&hint.includes('low')?'low':'high';
+    // Store with current timestamp so the bubble appears fresh for this player
     _guessHistory[selTarget]={guesser:myName,guessNum:gval,hint:resolvedHint,isJump:false,ts:Date.now()};
-
-    if(correct){showToast('💥 Correct! Eliminated!','correct');sfx.eliminate();
-      // Clear eliminated player's guess history since they're out
-      delete _guessHistory[selTarget];
-    }
+    if(correct){showToast('💥 Correct! Eliminated!','correct');sfx.eliminate();delete _guessHistory[selTarget];}
     else if(hint&&hint.includes('low')){showToast('🔼 Too low!','low');sfx.low();}
     else if(hint&&hint.includes('high')){showToast('🔽 Too high!','high');sfx.high();}
     $('g-guess').value='';selTarget=null;jumpTarget=null;
     document.querySelectorAll('.tbtn').forEach(b=>b.classList.remove('sel','auto-sel'));
     $('g-targets').dataset.built='';$('g-auto-notice').style.display='none';
     $('g-jump-panel').style.display='none';
+    syncGuessHistoryFromLog(lobby);
     if(lobby.gameState==='over'){stopPoll();goToOver(lobby);}else renderGame(lobby);
   }catch(e){setErr('g-err',e.message);}
   finally{setBtnLoading('btn-guess',false);}
@@ -1002,21 +1012,15 @@ async function doJumpGuess(){
   const gval=parseInt($('g-jump-guess').value);
   if(!jumpTarget){setErr('g-jump-err','No jump target selected');return;}
   if(isNaN(gval)||gval<1||gval>99){setErr('g-jump-err','Enter a number between 1 and 99');return;}
-  sfx.guess();
-  setBtnLoading('btn-jump-guess',true);
+  sfx.guess();setBtnLoading('btn-jump-guess',true);
   try{
     const{lobby,correct}=await api('/api/guess',{code:lobbyCode,playerId:myId,targetId:jumpTarget,guess:gval,isJump:true});
     lastUpdatedAt=toTs(lobby.updatedAt);
-
-    // Store jump guess in history
-    const resolvedHint=correct?'correct':'miss';
     _guessHistory[jumpTarget]={guesser:myName,guessNum:gval,hint:correct?'correct':'low',isJump:true,ts:Date.now()};
-
     if(correct){showToast('⚡ YES! Jump correct! Eliminated!','jump-yes');sfx.jumpHit();delete _guessHistory[jumpTarget];}
     else{showToast('✗ NO — wrong jump guess','jump-no');sfx.jumpMiss();}
-    $('g-jump-guess').value='';
-    jumpTarget=null;
-    $('g-jump-panel').style.display='none';
+    $('g-jump-guess').value='';jumpTarget=null;$('g-jump-panel').style.display='none';
+    syncGuessHistoryFromLog(lobby);
     if(lobby.gameState==='over'){stopPoll();goToOver(lobby);}else renderGame(lobby);
   }catch(e){setErr('g-jump-err',e.message);}
   finally{setBtnLoading('btn-jump-guess',false);}
@@ -1027,7 +1031,6 @@ function goToOver(lobby){
   show('s-over');
   const iWon=lobby.winner===myId;
   setTimeout(()=>iWon?sfx.win():sfx.eliminated(),200);
-
   const players=lobby.players||{},order=lobby.order||[];
   const w=players[lobby.winner];$('o-winner').textContent=w?w.name:'?';
   const ul=$('o-players');ul.innerHTML='';
@@ -1055,8 +1058,7 @@ function goToOver(lobby){
 }
 
 async function doAgain(){
-  sfx.click();
-  showLoader('Restarting…');
+  sfx.click();showLoader('Restarting…');
   try{
     const{lobby}=await api('/api/again',{code:lobbyCode});
     lastUpdatedAt=toTs(lobby.updatedAt);myNumber=null;selNum=null;selTarget=null;jumpTarget=null;_wasMyTurn=false;_guessHistory={};
