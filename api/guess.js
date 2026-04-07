@@ -20,6 +20,9 @@ export default async function handler(req, res) {
     if (!target) return res.status(400).json({ error: "Target not found" });
     if (target.eliminated) return res.status(400).json({ error: "Target already eliminated" });
 
+    // Initialize recentGuesses array if it doesn't exist
+    if (!lobby.recentGuesses) lobby.recentGuesses = [];
+
     // --- JUMP GUESS: anyone alive can jump-guess any other alive player ---
     if (isJump) {
       if (lobby.gameState !== "playing")
@@ -32,63 +35,83 @@ export default async function handler(req, res) {
       const guessNum = parseInt(guess);
       const correct = target.number === guessNum;
 
-      // Jump guess hint is simply YES or NO
       const hint = correct ? "YES ✅" : "NO ❌";
       const logEntry = `[JUMP] ${guesser.name} → ${target.name}: ${guess} — ${hint}`;
       lobby.log.push(logEntry);
 
+      // Track this guess for the ring center display
+      lobby.recentGuesses.push({
+        guesser: guesser.name,
+        target: target.name,
+        num: guessNum,
+        correct,
+        hint: correct ? "correct" : "jump-miss",
+        isJump: true,
+        ts: Date.now(),
+      });
+      // Keep only the last 5 guesses
+      if (lobby.recentGuesses.length > 5) lobby.recentGuesses.shift();
+
       if (correct) {
         lobby.players[targetId].eliminated = true;
 
-        // Check alive players after elimination
         const alive = lobby.order.filter(
           (pid) => lobby.players[pid] && !lobby.players[pid].eliminated
         );
 
         if (alive.length <= 1) {
-          // Game over
           const winnerId = alive[0] || playerId;
           lobby.log.push((lobby.players[winnerId]?.name || "?") + " wins! 🏆");
           lobby.gameState = "over";
           lobby.winner = winnerId;
           lobby.currentTurn = null;
         }
-        // currentTurn does NOT change on a jump guess — the normal turn order continues
       }
-      // If wrong, nothing changes — current turn stays the same
 
     } else {
-      // --- NORMAL GUESS: must be your turn, target is the next player in order ---
+      // --- NORMAL GUESS: must be your turn ---
       if (lobby.currentTurn !== playerId)
         return res.status(400).json({ error: "Not your turn" });
 
       const guessNum = parseInt(guess);
       const correct = target.number === guessNum;
-      const hint = correct
+      const hintText = correct
         ? "CORRECT! " + target.name + " eliminated!"
         : guessNum < target.number
         ? "Too low! 🔼"
         : "Too high! 🔽";
 
-      const logEntry = `${guesser.name} → ${target.name}: ${guess} — ${hint}`;
+      const logEntry = `${guesser.name} → ${target.name}: ${guess} — ${hintText}`;
       lobby.log.push(logEntry);
+
+      // Track this guess for the ring center display
+      // hint field: "correct" | "low" | "high"
+      const hintKey = correct ? "correct" : guessNum < target.number ? "low" : "high";
+      lobby.recentGuesses.push({
+        guesser: guesser.name,
+        target: target.name,
+        num: guessNum,
+        correct,
+        hint: hintKey,
+        isJump: false,
+        ts: Date.now(),
+      });
+      // Keep only the last 5 guesses
+      if (lobby.recentGuesses.length > 5) lobby.recentGuesses.shift();
 
       if (correct) lobby.players[targetId].eliminated = true;
 
-      // Check alive players
       const alive = lobby.order.filter(
         (pid) => lobby.players[pid] && !lobby.players[pid].eliminated
       );
 
       if (alive.length <= 1) {
-        // Game over
         const winnerId = alive[0] || playerId;
         lobby.log.push((lobby.players[winnerId]?.name || "?") + " wins! 🏆");
         lobby.gameState = "over";
         lobby.winner = winnerId;
         lobby.currentTurn = null;
       } else {
-        // Advance to next turn in normal order
         let idx = alive.indexOf(playerId);
         if (idx === -1) idx = 0;
         lobby.currentTurn = alive[(idx + 1) % alive.length];
@@ -109,6 +132,7 @@ export default async function handler(req, res) {
         $set: {
           players: lobby.players,
           log: lobby.log,
+          recentGuesses: lobby.recentGuesses,
           gameState: lobby.gameState,
           winner: lobby.winner,
           currentTurn: lobby.currentTurn,
@@ -119,13 +143,17 @@ export default async function handler(req, res) {
       }
     );
 
-    res.json({ lobby, correct: target.number === parseInt(guess), hint: isJump
-      ? (target.number === parseInt(guess) ? "YES ✅" : "NO ❌")
-      : (target.number === parseInt(guess)
-          ? "CORRECT! " + target.name + " eliminated!"
-          : parseInt(guess) < target.number
-          ? "Too low! 🔼"
-          : "Too high! 🔽")
+    const guessNum = parseInt(guess);
+    res.json({
+      lobby,
+      correct: target.number === guessNum,
+      hint: isJump
+        ? (target.number === guessNum ? "YES ✅" : "NO ❌")
+        : (target.number === guessNum
+            ? "CORRECT! " + target.name + " eliminated!"
+            : guessNum < target.number
+            ? "Too low! 🔼"
+            : "Too high! 🔽"),
     });
 
   } catch (err) {
